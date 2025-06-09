@@ -8,7 +8,7 @@ export interface User {
 export interface InterviewSetup {
   industry: string;
   difficulty: 'easy' | 'medium' | 'hard';
-  personality: 'friendly' | 'neutral' | 'tough';
+  personality: 'intimidator' | 'friendly' | 'robotic' | 'curveball';
   role?: string;
 }
 

@@ -100,7 +100,7 @@ export function Landing() {
               className="flex flex-col sm:flex-row gap-4 justify-center"
             >
               {user ? (
-                <Button asChild size="lg\" className="text-lg px-8">
+                <Button asChild size="lg" className="text-lg px-8">
                   <Link to="/onboarding">
                     Start Practicing <ArrowRight className="ml-2 h-5 w-5" />
                   </Link>

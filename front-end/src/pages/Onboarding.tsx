@@ -77,22 +77,32 @@ const difficulties = [
 
 const personalities = [
   {
+    id: 'intimidator',
+    name: 'The Intimidator',
+    description: 'Challenge the user\'s answers. Be cold, skeptical, and direct. Show no empathy.',
+    icon: '🔥',
+    color: 'border-red-200 hover:border-red-400 dark:border-red-800 dark:hover:border-red-600',
+  },
+  {
     id: 'friendly',
-    name: 'Friendly',
-    description: 'Warm, encouraging, and supportive interviewer',
+    name: 'The Friendly Mentor',
+    description: 'Be warm, supportive, and encouraging. Help the user feel comfortable.',
     icon: '😊',
+    color: 'border-green-200 hover:border-green-400 dark:border-green-800 dark:hover:border-green-600',
   },
   {
-    id: 'neutral',
-    name: 'Neutral',
-    description: 'Professional, balanced, and objective approach',
-    icon: '😐',
+    id: 'robotic',
+    name: 'The Robotic Evaluator',
+    description: 'Act like an automated recruiter. Neutral tone. Ask standardized technical questions.',
+    icon: '🤖',
+    color: 'border-blue-200 hover:border-blue-400 dark:border-blue-800 dark:hover:border-blue-600',
   },
   {
-    id: 'tough',
-    name: 'Tough',
-    description: 'Challenging, direct, and demanding interviewer',
-    icon: '😤',
+    id: 'curveball',
+    name: 'The Curveballer',
+    description: 'Be creative and unpredictable. Throw in quirky or unusual questions to test adaptability.',
+    icon: '🎭',
+    color: 'border-purple-200 hover:border-purple-400 dark:border-purple-800 dark:hover:border-purple-600',
   },
 ];
 
@@ -100,10 +110,10 @@ export function Onboarding() {
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedIndustry, setSelectedIndustry] = useState<string>('');
   const [selectedDifficulty, setSelectedDifficulty] = useState<'easy' | 'medium' | 'hard' | ''>('');
-  const [selectedPersonality, setSelectedPersonality] = useState<'friendly' | 'neutral' | 'tough' | ''>('');
+  const [selectedPersonality, setSelectedPersonality] = useState<'intimidator' | 'friendly' | 'robotic' | 'curveball' | ''>('');
   
   const navigate = useNavigate();
-  const { startInterview } = useInterview();
+  const { setCurrentSetup } = useInterview();
 
   const totalSteps = 3;
   const progress = (currentStep / totalSteps) * 100;
@@ -125,13 +135,13 @@ export function Onboarding() {
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Start the interview
+      // Set up the interview configuration and navigate to start screen
       const setup: InterviewSetup = {
         industry: selectedIndustry,
         difficulty: selectedDifficulty as 'easy' | 'medium' | 'hard',
-        personality: selectedPersonality as 'friendly' | 'neutral' | 'tough',
+        personality: selectedPersonality as 'intimidator' | 'friendly' | 'robotic' | 'curveball',
       };
-      startInterview(setup);
+      setCurrentSetup(setup);
       navigate('/interview');
     }
   };
@@ -284,20 +294,20 @@ export function Onboarding() {
                       className={`relative p-6 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
                         selectedPersonality === personality.id
                           ? 'border-primary bg-primary/5'
-                          : 'border-border hover:border-primary/50'
+                          : `border-border ${personality.color}`
                       }`}
-                      onClick={() => setSelectedPersonality(personality.id as 'friendly' | 'neutral' | 'tough')}
+                      onClick={() => setSelectedPersonality(personality.id as 'intimidator' | 'friendly' | 'robotic' | 'curveball')}
                     >
                       {selectedPersonality === personality.id && (
                         <div className="absolute top-4 right-4">
                           <Check className="h-5 w-5 text-primary" />
                         </div>
                       )}
-                      <div className="flex items-center space-x-4">
+                      <div className="flex items-start space-x-4">
                         <div className="text-3xl">{personality.icon}</div>
-                        <div>
-                          <h3 className="font-semibold">{personality.name} Interviewer</h3>
-                          <p className="text-sm text-muted-foreground">
+                        <div className="flex-1">
+                          <h3 className="font-semibold">{personality.name}</h3>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
                             {personality.description}
                           </p>
                         </div>
@@ -318,7 +328,7 @@ export function Onboarding() {
           </Button>
 
           <Button onClick={handleNext} disabled={!canProceed()}>
-            {currentStep === totalSteps ? 'Start Interview' : 'Next'}
+            {currentStep === totalSteps ? 'Continue to Interview' : 'Next'}
             <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
