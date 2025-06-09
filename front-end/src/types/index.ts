@@ -10,6 +10,7 @@ export interface InterviewSetup {
   difficulty: 'easy' | 'medium' | 'hard';
   personality: 'intimidator' | 'friendly' | 'robotic' | 'curveball';
   role?: string;
+  company?: string;
 }
 
 export interface Message {
