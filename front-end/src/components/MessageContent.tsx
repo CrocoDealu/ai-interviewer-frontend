@@ -9,7 +9,7 @@ interface MessageContentProps {
 
 export function MessageContent({ content, className = '' }: MessageContentProps) {
   const formatContent = (text: string) => {
-    // Split text by LaTeX patterns
+    // Split text by LaTeX patterns first
     const parts = [];
     let lastIndex = 0;
     
@@ -63,7 +63,7 @@ export function MessageContent({ content, className = '' }: MessageContentProps)
         if (textBefore) {
           result.push(
             <span key={`text-${index}`}>
-              {formatPlainText(textBefore)}
+              {formatMarkdown(textBefore)}
             </span>
           );
         }
@@ -101,17 +101,100 @@ export function MessageContent({ content, className = '' }: MessageContentProps)
       if (remainingText) {
         result.push(
           <span key="remaining">
-            {formatPlainText(remainingText)}
+            {formatMarkdown(remainingText)}
           </span>
         );
       }
     }
     
-    return result.length > 0 ? result : [formatPlainText(text)];
+    return result.length > 0 ? result : [formatMarkdown(text)];
+  };
+  
+  const formatMarkdown = (text: string) => {
+    // Handle basic Markdown formatting
+    const parts = [];
+    let lastIndex = 0;
+    
+    // Patterns for different markdown elements
+    const patterns = [
+      { regex: /\*\*(.*?)\*\*/g, type: 'bold' },
+      { regex: /\*(.*?)\*/g, type: 'italic' },
+      { regex: /`(.*?)`/g, type: 'code' },
+      { regex: /~~(.*?)~~/g, type: 'strikethrough' },
+    ];
+    
+    // Find all matches
+    const allMatches = [];
+    patterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.regex.exec(text)) !== null) {
+        allMatches.push({
+          type: pattern.type,
+          start: match.index,
+          end: match.index + match[0].length,
+          content: match[1],
+          fullMatch: match[0]
+        });
+      }
+    });
+    
+    // Sort matches by position
+    allMatches.sort((a, b) => a.start - b.start);
+    
+    // Remove overlapping matches (keep the first one)
+    const validMatches = [];
+    let lastEnd = 0;
+    allMatches.forEach(match => {
+      if (match.start >= lastEnd) {
+        validMatches.push(match);
+        lastEnd = match.end;
+      }
+    });
+    
+    let currentIndex = 0;
+    validMatches.forEach((match, index) => {
+      // Add text before this match
+      if (currentIndex < match.start) {
+        const textBefore = text.slice(currentIndex, match.start);
+        parts.push(formatPlainText(textBefore));
+      }
+      
+      // Add the formatted content
+      switch (match.type) {
+        case 'bold':
+          parts.push(<strong key={`bold-${index}`}>{match.content}</strong>);
+          break;
+        case 'italic':
+          parts.push(<em key={`italic-${index}`}>{match.content}</em>);
+          break;
+        case 'code':
+          parts.push(
+            <code key={`code-${index}`} className="bg-muted px-1 py-0.5 rounded text-sm font-mono">
+              {match.content}
+            </code>
+          );
+          break;
+        case 'strikethrough':
+          parts.push(<del key={`strike-${index}`}>{match.content}</del>);
+          break;
+        default:
+          parts.push(match.content);
+      }
+      
+      currentIndex = match.end;
+    });
+    
+    // Add remaining text
+    if (currentIndex < text.length) {
+      const remainingText = text.slice(currentIndex);
+      parts.push(formatPlainText(remainingText));
+    }
+    
+    return parts.length > 0 ? parts : [formatPlainText(text)];
   };
   
   const formatPlainText = (text: string) => {
-    // Handle basic formatting
+    // Handle line breaks
     return text.split('\n').map((line, index, array) => (
       <React.Fragment key={index}>
         {line}
