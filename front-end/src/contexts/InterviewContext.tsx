@@ -41,8 +41,7 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
       startTime: new Date(),
     };
     setCurrentSession(session);
-    
-    // Generate initial AI message using DeepSeek
+
     setIsAiResponding(true);
     try {
       const initialPrompt = "Please introduce yourself and start the interview.";
