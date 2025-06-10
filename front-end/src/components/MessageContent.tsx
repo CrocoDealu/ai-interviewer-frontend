@@ -115,8 +115,11 @@ export function MessageContent({ content, className = '' }: MessageContentProps)
     const parts = [];
     let lastIndex = 0;
     
-    // Patterns for different markdown elements
+    // Patterns for different markdown elements (order matters!)
     const patterns = [
+      { regex: /^### (.*$)/gm, type: 'h3' },
+      { regex: /^## (.*$)/gm, type: 'h2' },
+      { regex: /^# (.*$)/gm, type: 'h1' },
       { regex: /\*\*(.*?)\*\*/g, type: 'bold' },
       { regex: /\*(.*?)\*/g, type: 'italic' },
       { regex: /`(.*?)`/g, type: 'code' },
@@ -161,6 +164,15 @@ export function MessageContent({ content, className = '' }: MessageContentProps)
       
       // Add the formatted content
       switch (match.type) {
+        case 'h1':
+          parts.push(<h1 key={`h1-${index}`} className="text-2xl font-bold mt-4 mb-2">{match.content}</h1>);
+          break;
+        case 'h2':
+          parts.push(<h2 key={`h2-${index}`} className="text-xl font-semibold mt-3 mb-2">{match.content}</h2>);
+          break;
+        case 'h3':
+          parts.push(<h3 key={`h3-${index}`} className="text-lg font-medium mt-2 mb-1">{match.content}</h3>);
+          break;
         case 'bold':
           parts.push(<strong key={`bold-${index}`}>{match.content}</strong>);
           break;
