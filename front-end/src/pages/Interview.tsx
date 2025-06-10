@@ -24,6 +24,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { MessageContent } from '@/components/MessageContent';
 import { useInterview } from '@/contexts/InterviewContext';
 import { Message } from '@/types';
 import { deepSeekService } from '@/services/deepseekApi';
@@ -35,8 +36,10 @@ export function Interview() {
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState('00:00');
   const [hasStarted, setHasStarted] = useState(false);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { 
     currentSetup,
@@ -69,10 +72,26 @@ export function Interview() {
     return () => clearInterval(timer);
   }, [startTime]);
 
-  // Scroll to bottom when new messages arrive
+  // Handle scrolling behavior
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [currentSession?.messages]);
+    if (!currentSession?.messages || currentSession.messages.length === 0) return;
+    
+    const lastMessage = currentSession.messages[currentSession.messages.length - 1];
+    
+    // Only auto-scroll for user messages or if explicitly enabled
+    if (shouldAutoScroll && (lastMessage.sender === 'user' || !isAiResponding)) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [currentSession?.messages, shouldAutoScroll, isAiResponding]);
+
+  // Detect manual scrolling to disable auto-scroll
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const element = event.currentTarget;
+    const isAtBottom = element.scrollHeight - element.scrollTop <= element.clientHeight + 50;
+    setShouldAutoScroll(isAtBottom);
+  };
 
   // Redirect if no setup
   useEffect(() => {
@@ -102,6 +121,7 @@ export function Interview() {
     if (message.trim() && !isAiResponding) {
       const messageText = message.trim();
       setMessage('');
+      setShouldAutoScroll(true); // Enable auto-scroll for user messages
       await addMessage(messageText, 'user');
     }
   };
@@ -286,7 +306,7 @@ export function Interview() {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 p-4" onScrollCapture={handleScroll} ref={scrollAreaRef}>
         <div className="space-y-4 max-w-4xl mx-auto">
           <AnimatePresence>
             {currentSession?.messages.map((msg: Message) => (
@@ -320,7 +340,10 @@ export function Interview() {
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted'
                   }`}>
-                    <p className="text-sm leading-relaxed">{msg.content}</p>
+                    <MessageContent 
+                      content={msg.content} 
+                      className="text-sm leading-relaxed"
+                    />
                     <p className={`text-xs mt-2 ${
                       msg.sender === 'user'
                         ? 'text-primary-foreground/70'
@@ -364,6 +387,23 @@ export function Interview() {
       {/* Input Area */}
       <div className="border-t bg-card p-4">
         <div className="max-w-4xl mx-auto">
+          {/* Scroll Control */}
+          {!shouldAutoScroll && (
+            <div className="mb-3 text-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShouldAutoScroll(true);
+                  messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="text-xs"
+              >
+                ↓ Scroll to bottom
+              </Button>
+            </div>
+          )}
+          
           <div className="flex items-center space-x-3">
             {/* Voice Controls */}
             <TooltipProvider>
