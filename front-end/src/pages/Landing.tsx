@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -67,6 +67,11 @@ const testimonials = [
 export function Landing() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { user } = useAuth();
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   return (
     <div className="min-h-screen">

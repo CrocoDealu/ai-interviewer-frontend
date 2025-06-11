@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
@@ -114,6 +114,11 @@ export function Onboarding() {
   
   const navigate = useNavigate();
   const { setCurrentSetup } = useInterview();
+
+  // Scroll to top when component mounts or step changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentStep]);
 
   const totalSteps = 3;
   const progress = (currentStep / totalSteps) * 100;

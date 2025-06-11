@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -23,6 +23,11 @@ import { useInterview } from '@/contexts/InterviewContext';
 export function Feedback() {
   const navigate = useNavigate();
   const { currentSession, clearSession } = useInterview();
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   // Redirect if no session or no feedback
   React.useEffect(() => {

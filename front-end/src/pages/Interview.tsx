@@ -58,6 +58,11 @@ export function Interview() {
     stopSpeaking
   } = useInterview();
 
+  // Scroll to top when component mounts or when hasStarted changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [hasStarted]);
+
   // Timer effect
   useEffect(() => {
     if (!startTime) return;
@@ -115,6 +120,8 @@ export function Interview() {
   const handleStartInterview = async () => {
     setHasStarted(true);
     setStartTime(new Date());
+    // Scroll to top when starting interview
+    window.scrollTo(0, 0);
     await startInterview(currentSetup);
   };
 
