@@ -119,7 +119,6 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
           messages: [...prev!.messages, aiMessage],
         }));
 
-        // Speak the AI response if voice is enabled
         if (isVoiceEnabled) {
           await speakMessage(aiResponse);
         }
@@ -189,6 +188,7 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
   };
 
   const startVoiceInput = async () => {
+    console.log("Starting voice input");
     if (!speechService.isSpeechRecognitionSupported()) {
       toast.error('Speech recognition is not supported in your browser');
       return;

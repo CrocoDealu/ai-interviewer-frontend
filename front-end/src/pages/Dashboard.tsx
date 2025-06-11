@@ -1,10 +1,9 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Plus, 
   TrendingUp, 
-  Calendar, 
   Award,
   BookOpen,
   Target,
@@ -183,7 +182,7 @@ export function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockRecentInterviews.map((interview, index) => (
+                  {mockRecentInterviews.map((interview) => (
                     <div
                       key={interview.id}
                       className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"

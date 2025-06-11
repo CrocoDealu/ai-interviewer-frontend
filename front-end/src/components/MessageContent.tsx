@@ -10,10 +10,6 @@ interface MessageContentProps {
 export function MessageContent({ content, className = '' }: MessageContentProps) {
   const formatContent = (text: string) => {
     // Split text by LaTeX patterns first
-    const parts = [];
-    let lastIndex = 0;
-    
-    // Pattern for block math ($$...$$)
     const blockMathRegex = /\$\$([^$]+)\$\$/g;
     // Pattern for inline math ($...$)
     const inlineMathRegex = /\$([^$\n]+)\$/g;
@@ -29,14 +25,14 @@ export function MessageContent({ content, className = '' }: MessageContentProps)
         content: blockMatch[1].trim()
       });
     }
-    
-    // Then handle inline math (avoiding conflicts with block math)
+    //@ts-ignore
     let inlineMatch;
     const inlineMatches = [];
     while ((inlineMatch = inlineMathRegex.exec(text)) !== null) {
       // Check if this inline match is inside a block match
-      const isInsideBlock = blockMatches.some(block => 
-        inlineMatch.index >= block.start && inlineMatch.index < block.end
+      const isInsideBlock = blockMatches.some(block =>
+              // @ts-ignore
+          inlineMatch.index >= block.start && inlineMatch.index < block.end
       );
       
       if (!isInsideBlock) {
@@ -113,9 +109,7 @@ export function MessageContent({ content, className = '' }: MessageContentProps)
   const formatMarkdown = (text: string) => {
     // Handle basic Markdown formatting
     const parts = [];
-    let lastIndex = 0;
-    
-    // Patterns for different markdown elements (order matters!)
+// Patterns for different markdown elements (order matters!)
     const patterns = [
       { regex: /^### (.*$)/gm, type: 'h3' },
       { regex: /^## (.*$)/gm, type: 'h2' },
@@ -127,7 +121,7 @@ export function MessageContent({ content, className = '' }: MessageContentProps)
     ];
     
     // Find all matches
-    const allMatches = [];
+    const allMatches: { type: string; start: number; end: number; content: string; fullMatch: string; }[] = [];
     patterns.forEach(pattern => {
       let match;
       while ((match = pattern.regex.exec(text)) !== null) {
@@ -145,7 +139,7 @@ export function MessageContent({ content, className = '' }: MessageContentProps)
     allMatches.sort((a, b) => a.start - b.start);
     
     // Remove overlapping matches (keep the first one)
-    const validMatches = [];
+    const validMatches: { type: string; start: number; end: number; content: string; fullMatch: string; }[] = [];
     let lastEnd = 0;
     allMatches.forEach(match => {
       if (match.start >= lastEnd) {

@@ -7,7 +7,6 @@ import {
   MicOff, 
   Clock, 
   User, 
-  Bot,
   Volume2,
   VolumeX,
   Square,
@@ -52,7 +51,6 @@ export function Interview() {
     setIsVoiceEnabled,
     isSpeaking,
     isListening,
-    shouldContinueListening,
     startVoiceInput,
     stopVoiceInput,
     stopSpeaking

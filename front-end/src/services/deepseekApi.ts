@@ -40,13 +40,14 @@ class DeepSeekService {
       hard: "ADVANCED: Challenging questions requiring deep technical knowledge, strategic thinking, and leadership skills."
     };
 
+    //@ts-ignore
     const industryContext = {
       tech: "technology and software development",
       healthcare: "healthcare and medical services",
       finance: "finance and banking",
       marketing: "marketing and digital advertising",
       education: "education and academic institutions",
-      design: "design and creative services"
+      design: "design and creative services",
     };
 
     return `
@@ -55,7 +56,7 @@ class DeepSeekService {
     1. Begin with a professional introduction of yourself and briefly describe ${setup.company}.
     2. Conduct the interview with:
        - 3-5 technical questions appropriate for a ${difficultyLevels[setup.difficulty]} ${setup.role}.
-       - Include industry-specific questions relevant to ${industryContext[setup.industry] || setup.industry}.
+       - Include industry-specific questions relevant to ${setup.industry}.
        - 2-3 behavioral/non-technical questions relevant to the role.
        - At least one scenario-based question (e.g., "How would you handle X situation?").
     3. Interview process:

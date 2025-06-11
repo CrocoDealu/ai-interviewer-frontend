@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
+  // @ts-ignore
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
@@ -45,7 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   };
-
+  //@ts-ignore
   const signup = async (email: string, password: string, name: string) => {
     setLoading(true);
     try {
