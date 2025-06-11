@@ -52,6 +52,7 @@ export function Interview() {
     setIsVoiceEnabled,
     isSpeaking,
     isListening,
+    shouldContinueListening,
     startVoiceInput,
     stopVoiceInput,
     stopSpeaking
