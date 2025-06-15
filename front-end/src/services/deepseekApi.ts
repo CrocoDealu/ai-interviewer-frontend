@@ -10,6 +10,7 @@ export interface DeepSeekResponse {
     message: {
       content: string;
     };
+    finish_reason?: string;
   }[];
 }
 
@@ -28,7 +29,7 @@ class DeepSeekService {
 
   private generateSystemPrompt(setup: InterviewSetup): string {
     const personalityPrompts = {
-      intimidator: `INTIMIDATOR: Challenge the user’s answers. Be cold, skeptical, and direct. Show no empathy. Interrupt if answers are too long.`,
+      intimidator: `INTIMIDATOR: Challenge the user's answers. Be cold, skeptical, and direct. Show no empathy. Interrupt if answers are too long.`,
       friendly: `FRIENDLY MENTOR: Be warm, supportive, and encouraging. Help the user feel comfortable. Give soft feedback when needed.`,
       robotic: `ROBOTIC EVALUATOR: Act like an automated recruiter. Neutral tone. Ask standardized technical questions. Give minimal feedback.`,
       curveball: `CURVEBALLER: Be creative and unpredictable. Occasionally throw in quirky or unusual questions to test adaptability.`
@@ -40,7 +41,6 @@ class DeepSeekService {
       hard: "ADVANCED: Challenging questions requiring deep technical knowledge, strategic thinking, and leadership skills."
     };
 
-    //@ts-ignore
     const industryContext = {
       tech: "technology and software development",
       healthcare: "healthcare and medical services",
@@ -52,6 +52,7 @@ class DeepSeekService {
 
     return `
     You are an expert interviewer for a ${setup.role || 'professional'} role at ${setup.company || 'a leading company'}. Today you will assume the personality of ${personalityPrompts[setup.personality]} Conduct a realistic job interview simulation to help the candidate practice and improve their interview skills.
+    
     Follow this interview structure:
     1. Begin with a professional introduction of yourself and briefly describe ${setup.company}.
     2. Conduct the interview with:
@@ -74,7 +75,7 @@ class DeepSeekService {
        - 2-3 specific recommendations for improvement.
        - Highlight 1-2 particularly strong answers (if any).
     
-    Use clear, direct language and avoid complex terminology. Aim for a Flesch reading score of 80 or higher. Use the active voice. Avoid adverbs. Avoid buzzwords and instead use plain English. Use jargon where relevant. Avoid being salesy or overly enthusiastic and instead express calm confidence.
+    Keep responses concise but complete. Use clear, direct language and avoid complex terminology. Aim for a Flesch reading score of 80 or higher. Use the active voice. Avoid adverbs. Avoid buzzwords and instead use plain English. Use jargon where relevant. Avoid being salesy or overly enthusiastic and instead express calm confidence.
   `;
   }
 
@@ -92,6 +93,8 @@ class DeepSeekService {
         ? messages 
         : [{ role: 'system' as const, content: systemPrompt }, ...messages];
 
+      console.log('Sending request to OpenRouter API...');
+      
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
@@ -103,24 +106,43 @@ class DeepSeekService {
         body: JSON.stringify({
           model: 'deepseek/deepseek-r1-0528:free',
           messages: messagesWithSystem,
-          max_tokens: 300,
+          max_tokens: 800, // Increased from 300 to allow for complete responses
           temperature: 0.7,
           stream: false,
+          // Add these parameters to help with response completeness
+          top_p: 0.9,
+          frequency_penalty: 0.1,
+          presence_penalty: 0.1,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.text();
+        console.error('OpenRouter API error response:', errorData);
         throw new Error(`OpenRouter API error: ${response.status} - ${errorData}`);
       }
 
       const data: DeepSeekResponse = await response.json();
+      console.log('OpenRouter API response:', data);
       
       if (!data.choices || data.choices.length === 0) {
         throw new Error('No response from OpenRouter API');
       }
 
-      return data.choices[0].message.content.trim();
+      const choice = data.choices[0];
+      const content = choice.message.content.trim();
+      
+      // Check if the response was truncated
+      if (choice.finish_reason === 'length') {
+        console.warn('Response was truncated due to max_tokens limit');
+        // You could potentially make another request to continue the response
+        // or increase max_tokens further
+      }
+
+      console.log('AI Response:', content);
+      console.log('Finish reason:', choice.finish_reason);
+      
+      return content;
     } catch (error) {
       console.error('OpenRouter API Error:', error);
       
