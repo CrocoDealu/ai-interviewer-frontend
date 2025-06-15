@@ -190,12 +190,19 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
   const startVoiceInput = async () => {
     console.log("Starting voice input");
     if (!speechService.isSpeechRecognitionSupported()) {
-      toast.error('Speech recognition is not supported in your browser');
+      toast.error('Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari.');
       return;
     }
 
     if (isListening) {
       return;
+    }
+
+    // Stop any ongoing speech before starting to listen
+    if (isSpeaking) {
+      stopSpeaking();
+      // Wait a bit for speech to stop
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     try {
@@ -207,8 +214,8 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Speech recognition error:', error);
-      if (error instanceof Error && error.message !== 'No speech detected') {
-        toast.error(`Voice input failed: ${error.message}`);
+      if (error instanceof Error && !error.message.includes('No speech detected')) {
+        toast.error(error.message);
       }
     } finally {
       setIsListening(false);
