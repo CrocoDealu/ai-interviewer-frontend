@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { apiService } from '@/services/api';
 import { User } from '@/types';
 
 interface AuthContextType {
@@ -16,54 +17,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored user session
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    // Check for stored auth token and get current user
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      apiService.getCurrentUser()
+        .then(response => {
+          setUser(response.user);
+        })
+        .catch(error => {
+          console.error('Failed to get current user:', error);
+          // Clear invalid token
+          apiService.logout();
+        });
     }
     setLoading(false);
   }, []);
 
-  // @ts-ignore
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const mockUser: User = {
-        id: '1',
-        email,
-        name: email.split('@')[0],
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      const response = await apiService.login(email, password);
+      setUser(response.user);
     } catch (error) {
-      throw new Error('Login failed');
+      console.error('Login error:', error);
+      throw error;
     } finally {
       setLoading(false);
     }
   };
-  //@ts-ignore
+
   const signup = async (email: string, password: string, name: string) => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const mockUser: User = {
-        id: '1',
-        email,
-        name,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+      const response = await apiService.signup(email, password, name);
+      setUser(response.user);
     } catch (error) {
-      throw new Error('Signup failed');
+      console.error('Signup error:', error);
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -71,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('user');
+    apiService.logout();
   };
 
   return (

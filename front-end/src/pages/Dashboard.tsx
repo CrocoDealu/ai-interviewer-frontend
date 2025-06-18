@@ -15,41 +15,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiService } from '@/services/api';
 
 // Mock data for dashboard
-const mockStats = {
-  totalInterviews: 12,
-  averageScore: 78,
-  improvementRate: 15,
-  timeSpent: 4.5,
-};
-
-const mockRecentInterviews = [
-  {
-    id: '1',
-    industry: 'Technology',
-    difficulty: 'Medium',
-    score: 85,
-    date: new Date('2024-01-15'),
-    duration: 25,
-  },
-  {
-    id: '2',
-    industry: 'Finance',
-    difficulty: 'Hard',
-    score: 72,
-    date: new Date('2024-01-12'),
-    duration: 30,
-  },
-  {
-    id: '3',
-    industry: 'Healthcare',
-    difficulty: 'Easy',
-    score: 88,
-    date: new Date('2024-01-10'),
-    duration: 20,
-  },
-];
 
 const mockRecommendations = [
   {
@@ -71,11 +39,42 @@ const mockRecommendations = [
 
 export function Dashboard() {
   const { user } = useAuth();
+  const [stats, setStats] = useState<any>(null);
+  const [recentInterviews, setRecentInterviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Scroll to top when component mounts
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  // Fetch user data
+  useEffect(() => {
+    if (user) {
+      Promise.all([
+        apiService.getUserStats(),
+        apiService.getUserInterviews()
+      ])
+        .then(([statsResponse, interviewsResponse]) => {
+          setStats(statsResponse.stats);
+          setRecentInterviews(interviewsResponse.interviews.slice(0, 3)); // Show last 3
+        })
+        .catch(error => {
+          console.error('Failed to fetch dashboard data:', error);
+          // Use fallback data
+          setStats({
+            totalInterviews: 12,
+            averageScore: 78,
+            improvementRate: 15,
+            timeSpent: 4.5,
+          });
+          setRecentInterviews([]);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [user]);
 
   if (!user) {
     return (
@@ -85,6 +84,17 @@ export function Dashboard() {
           <Button asChild>
             <Link to="/">Go to Home</Link>
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading dashboard...</p>
         </div>
       </div>
     );
@@ -125,7 +135,7 @@ export function Dashboard() {
             <CardContent className="flex items-center p-6">
               <BookOpen className="h-8 w-8 text-primary mr-3" />
               <div>
-                <p className="text-2xl font-bold">{mockStats.totalInterviews}</p>
+                <p className="text-2xl font-bold">{stats?.totalInterviews || 0}</p>
                 <p className="text-sm text-muted-foreground">Total Interviews</p>
               </div>
             </CardContent>
@@ -135,7 +145,7 @@ export function Dashboard() {
             <CardContent className="flex items-center p-6">
               <Award className="h-8 w-8 text-primary mr-3" />
               <div>
-                <p className="text-2xl font-bold">{mockStats.averageScore}%</p>
+                <p className="text-2xl font-bold">{stats?.averageScore || 0}%</p>
                 <p className="text-sm text-muted-foreground">Average Score</p>
               </div>
             </CardContent>
@@ -145,7 +155,7 @@ export function Dashboard() {
             <CardContent className="flex items-center p-6">
               <TrendingUp className="h-8 w-8 text-primary mr-3" />
               <div>
-                <p className="text-2xl font-bold">+{mockStats.improvementRate}%</p>
+                <p className="text-2xl font-bold">+{stats?.improvementRate || 0}%</p>
                 <p className="text-sm text-muted-foreground">Improvement</p>
               </div>
             </CardContent>
@@ -155,7 +165,7 @@ export function Dashboard() {
             <CardContent className="flex items-center p-6">
               <Clock className="h-8 w-8 text-primary mr-3" />
               <div>
-                <p className="text-2xl font-bold">{mockStats.timeSpent}h</p>
+                <p className="text-2xl font-bold">{stats?.timeSpent || 0}h</p>
                 <p className="text-sm text-muted-foreground">Time Practiced</p>
               </div>
             </CardContent>
@@ -182,7 +192,7 @@ export function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockRecentInterviews.map((interview) => (
+                  {recentInterviews.length > 0 ? recentInterviews.map((interview) => (
                     <div
                       key={interview.id}
                       className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
@@ -190,22 +200,32 @@ export function Dashboard() {
                       <div className="flex items-center space-x-4">
                         <div className="w-2 h-2 bg-primary rounded-full"></div>
                         <div>
-                          <div className="font-medium">{interview.industry}</div>
+                          <div className="font-medium">{interview.setup?.industry || 'Unknown'}</div>
                           <div className="text-sm text-muted-foreground">
-                            {interview.date.toLocaleDateString()} • {interview.duration}min
+                            {new Date(interview.startTime).toLocaleDateString()} • {interview.messageCount} messages
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
-                        <Badge variant={interview.difficulty === 'Hard' ? 'destructive' : interview.difficulty === 'Medium' ? 'default' : 'secondary'}>
-                          {interview.difficulty}
+                        <Badge variant={interview.setup?.difficulty === 'hard' ? 'destructive' : interview.setup?.difficulty === 'medium' ? 'default' : 'secondary'}>
+                          {interview.setup?.difficulty || 'Unknown'}
                         </Badge>
                         <div className="text-right">
-                          <div className="font-bold text-lg">{interview.score}%</div>
+                          <div className="font-bold text-lg">
+                            {interview.feedback?.confidenceScore || 'N/A'}
+                            {interview.feedback?.confidenceScore && '%'}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p>No interviews yet. Start practicing to see your history!</p>
+                      <Button asChild className="mt-4">
+                        <Link to="/onboarding">Start First Interview</Link>
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

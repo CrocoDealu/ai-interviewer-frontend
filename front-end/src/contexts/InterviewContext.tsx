@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import { InterviewSetup, InterviewSession, Message } from '@/types';
-import { deepSeekService, DeepSeekMessage } from '@/services/deepseekApi';
+import { apiService } from '@/services/api';
 import { speechService } from '@/services/speechService';
 import { toast } from 'sonner';
 
@@ -34,37 +34,28 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
   const [isListening, setIsListening] = useState(false);
 
   const startInterview = async (setup: InterviewSetup) => {
-    const session: InterviewSession = {
-      id: Date.now().toString(),
-      setup,
-      messages: [],
-      startTime: new Date(),
-    };
-    setCurrentSession(session);
-
     setIsAiResponding(true);
     try {
-      const initialPrompt = "Please introduce yourself and start the interview.";
-      const aiResponse = await deepSeekService.sendMessage(
-        [{ role: 'user', content: initialPrompt }],
-        setup
-      );
+      const response = await apiService.startInterview(setup);
       
-      const aiMessage: Message = {
-        id: Date.now().toString(),
-        content: aiResponse,
-        sender: 'ai',
-        timestamp: new Date(),
+      const session: InterviewSession = {
+        id: response.interview.id,
+        setup: response.interview.setup,
+        messages: response.interview.messages.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp),
+        })),
+        startTime: new Date(response.interview.startTime),
       };
-
-      setCurrentSession(prev => ({
-        ...prev!,
-        messages: [aiMessage],
-      }));
+      
+      setCurrentSession(session);
 
       // Speak the initial message if voice is enabled
-      if (isVoiceEnabled) {
-        await speakMessage(aiResponse);
+      if (isVoiceEnabled && session.messages.length > 0) {
+        const lastMessage = session.messages[session.messages.length - 1];
+        if (lastMessage.sender === 'ai') {
+          await speakMessage(lastMessage.content);
+        }
       }
     } catch (error) {
       console.error('Error generating initial AI message:', error);
@@ -77,103 +68,94 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
   const addMessage = async (content: string, sender: 'ai' | 'user') => {
     if (!currentSession) return;
 
-    const message: Message = {
-      id: Date.now().toString(),
-      content,
-      sender,
-      timestamp: new Date(),
-    };
-
-    setCurrentSession(prev => ({
-      ...prev!,
-      messages: [...prev!.messages, message],
-    }));
-
     // Generate AI response for user messages
     if (sender === 'user') {
       setIsAiResponding(true);
       try {
-        // Convert session messages to DeepSeek format
-        const conversationHistory: DeepSeekMessage[] = [
-          ...currentSession.messages.map(msg => ({
-            role: msg.sender === 'ai' ? 'assistant' as const : 'user' as const,
-            content: msg.content,
-          })),
-          { role: 'user' as const, content },
-        ];
-
-        const aiResponse = await deepSeekService.sendMessage(
-          conversationHistory,
-          currentSession.setup
-        );
+        const response = await apiService.addMessage(currentSession.id, content, sender);
         
-        const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          content: aiResponse,
-          sender: 'ai',
-          timestamp: new Date(),
+        // Add user message
+        const userMessage: Message = {
+          ...response.userMessage,
+          timestamp: new Date(response.userMessage.timestamp),
         };
-
+        
         setCurrentSession(prev => ({
           ...prev!,
-          messages: [...prev!.messages, aiMessage],
+          messages: [...prev!.messages, userMessage],
         }));
 
-        if (isVoiceEnabled) {
-          await speakMessage(aiResponse);
+        // Add AI response if available
+        if (response.aiMessage) {
+          const aiMessage: Message = {
+            ...response.aiMessage,
+            timestamp: new Date(response.aiMessage.timestamp),
+          };
+
+          setCurrentSession(prev => ({
+            ...prev!,
+            messages: [...prev!.messages, aiMessage],
+          }));
+
+          if (isVoiceEnabled) {
+            await speakMessage(aiMessage.content);
+          }
         }
       } catch (error) {
         console.error('Error generating AI response:', error);
         toast.error('Failed to get AI response. Please try again.');
-        
-        // Add fallback message
-        const fallbackMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          content: "I apologize, but I'm having trouble responding right now. Could you please repeat your last point?",
-          sender: 'ai',
-          timestamp: new Date(),
-        };
-
-        setCurrentSession(prev => ({
-          ...prev!,
-          messages: [...prev!.messages, fallbackMessage],
-        }));
       } finally {
         setIsAiResponding(false);
       }
+    } else {
+      // For AI messages (shouldn't happen in normal flow)
+      const message: Message = {
+        id: Date.now().toString(),
+        content,
+        sender,
+        timestamp: new Date(),
+      };
+
+      setCurrentSession(prev => ({
+        ...prev!,
+        messages: [...prev!.messages, message],
+      }));
     }
   };
 
   const endInterview = () => {
     if (!currentSession) return;
 
-    const endTime = new Date();
-    const feedback = {
-      confidenceScore: Math.floor(Math.random() * 30) + 70, // 70-100
-      strengths: [
-        'Clear communication skills',
-        'Good problem-solving approach',
-        'Relevant experience mentioned',
-      ],
-      improvements: [
-        'Provide more specific examples',
-        'Show more enthusiasm',
-        'Ask thoughtful questions',
-      ],
-      overallRating: Math.floor(Math.random() * 2) + 4, // 4-5
-      detailedFeedback: {
-        communication: Math.floor(Math.random() * 30) + 70,
-        technicalKnowledge: Math.floor(Math.random() * 30) + 70,
-        problemSolving: Math.floor(Math.random() * 30) + 70,
-        culturalFit: Math.floor(Math.random() * 30) + 70,
-      },
-    };
-
-    setCurrentSession(prev => ({
-      ...prev!,
-      endTime,
-      feedback,
-    }));
+    apiService.endInterview(currentSession.id)
+      .then(response => {
+        setCurrentSession(prev => ({
+          ...prev!,
+          endTime: new Date(response.interview.endTime),
+          feedback: response.interview.feedback,
+        }));
+      })
+      .catch(error => {
+        console.error('Error ending interview:', error);
+        toast.error('Failed to end interview properly');
+        
+        // Fallback to local end
+        setCurrentSession(prev => ({
+          ...prev!,
+          endTime: new Date(),
+          feedback: {
+            confidenceScore: 75,
+            strengths: ['Good communication'],
+            improvements: ['Practice more'],
+            overallRating: 4,
+            detailedFeedback: {
+              communication: 75,
+              technicalKnowledge: 75,
+              problemSolving: 75,
+              culturalFit: 75,
+            },
+          },
+        }));
+      });
 
     // Stop any ongoing speech
     stopSpeaking();
