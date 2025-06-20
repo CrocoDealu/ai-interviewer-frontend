@@ -1,2 +1,163 @@
-src/components/ui/*
-hooks/use-toast.ts
+# Node modules and dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build outputs
+dist/
+build/
+.next/
+.nuxt/
+out/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Cache directories
+.cache/
+.parcel-cache/
+.turbo/
+.swc/
+.babel-cache/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backend related files (since this is frontend only)
+back-end/
+backend/
+server/
+api/
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.mdb
+
+# Server configuration files
+Dockerfile
+docker-compose.yml
+docker-compose.yaml
+.dockerignore
+Procfile
+railway.json
+
+# Language-specific files not relevant to frontend
+*.py
+*.php
+*.rb
+*.go
+*.rs
+*.java
+*.class
+*.jar
+
+# Large media files
+*.mp4
+*.avi
+*.mov
+*.mp3
+*.wav
+*.psd
+*.ai
+
+# Backup and temporary files
+*.bak
+*.backup
+*.tmp
+*.old
+*.orig
+
+# Archive files
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+
+# Test coverage and reports
+coverage/
+.nyc_output/
+test-results/
+junit.xml
+
+# Deployment directories
+.vercel/
+.netlify/
+.firebase/
+
+# Documentation
+docs/
+documentation/
+*.pdf
+*.doc
+*.docx
+
+# Linting cache
+.eslintcache
+.stylelintcache
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Package manager cache
+.npm/
+.yarn/
+.pnpm/
+
+# Runtime files
+*.pid
+*.seed
+*.pid.lock
+
+# Optional dependencies
+jspm_packages/
+web_modules/
+
+# Storybook
+.storybook-out/
+storybook-static/
+
+# Temporary folders
+tmp/
+temp/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Miscellaneous
+*.tgz
+*.tar.gz
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
