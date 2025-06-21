@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, {createContext, useContext, useEffect, useState} from 'react';
 import { InterviewSetup, InterviewSession, Message } from '@/types';
 import { apiService } from '@/services/api';
 import { speechService } from '@/services/speechService';
@@ -34,10 +34,11 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
   const [isListening, setIsListening] = useState(false);
 
   const startInterview = async (setup: InterviewSetup) => {
+    setIsVoiceEnabled(true);
     setIsAiResponding(true);
     try {
       const response = await apiService.startInterview(setup);
-      
+
       const session: InterviewSession = {
         id: response.interview.id,
         setup: response.interview.setup,
@@ -47,11 +48,10 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
         })),
         startTime: new Date(response.interview.startTime),
       };
-      
+
       setCurrentSession(session);
 
-      // Speak the initial message if voice is enabled
-      if (isVoiceEnabled && session.messages.length > 0) {
+      if (session.messages.length > 0) {
         const lastMessage = session.messages[session.messages.length - 1];
         if (lastMessage.sender === 'ai') {
           await speakMessage(lastMessage.content);
@@ -68,30 +68,27 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
   const addMessage = async (content: string, sender: 'ai' | 'user') => {
     if (!currentSession) return;
 
-    // Generate AI response for user messages
     if (sender === 'user') {
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        content,
+        sender,
+        timestamp: new Date(),
+      };
+      setCurrentSession(prev => ({
+        ...prev!,
+        messages: [...prev!.messages, userMessage],
+      }));
+
       setIsAiResponding(true);
       try {
         const response = await apiService.addMessage(currentSession.id, content, sender);
-        
-        // Add user message
-        const userMessage: Message = {
-          ...response.userMessage,
-          timestamp: new Date(response.userMessage.timestamp),
-        };
-        
-        setCurrentSession(prev => ({
-          ...prev!,
-          messages: [...prev!.messages, userMessage],
-        }));
 
-        // Add AI response if available
         if (response.aiMessage) {
           const aiMessage: Message = {
             ...response.aiMessage,
             timestamp: new Date(response.aiMessage.timestamp),
           };
-
           setCurrentSession(prev => ({
             ...prev!,
             messages: [...prev!.messages, aiMessage],
@@ -125,7 +122,7 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
 
   const endInterview = () => {
     if (!currentSession) return;
-
+    stopSpeaking();
     apiService.endInterview(currentSession.id)
       .then(response => {
         setCurrentSession(prev => ({
@@ -137,7 +134,7 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
       .catch(error => {
         console.error('Error ending interview:', error);
         toast.error('Failed to end interview properly');
-        
+
         // Fallback to local end
         setCurrentSession(prev => ({
           ...prev!,
@@ -170,7 +167,6 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
   };
 
   const startVoiceInput = async () => {
-    console.log("Starting voice input");
     if (!speechService.isSpeechRecognitionSupported()) {
       toast.error('Speech recognition is not supported in your browser. Please use Chrome, Edge, or Safari.');
       return;
@@ -180,27 +176,24 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Stop any ongoing speech before starting to listen
     if (isSpeaking) {
       stopSpeaking();
-      // Wait a bit for speech to stop
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     try {
       setIsListening(true);
       const transcript = await speechService.startListening();
-      
+      setIsListening(false);
       if (transcript.trim()) {
         await addMessage(transcript, 'user');
       }
+
     } catch (error) {
       console.error('Speech recognition error:', error);
       if (error instanceof Error && !error.message.includes('No speech detected')) {
         toast.error(error.message);
       }
-    } finally {
-      setIsListening(false);
     }
   };
 
@@ -208,6 +201,7 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
     if (isListening) {
       speechService.stopListening();
       setIsListening(false);
+      setIsVoiceEnabled(false);
     }
   };
 
@@ -236,6 +230,19 @@ export function InterviewProvider({ children }: { children: React.ReactNode }) {
     speechService.stopSpeaking();
     setIsSpeaking(false);
   };
+
+  useEffect(() => {
+    if (!isSpeaking && isVoiceEnabled && !isAiResponding && !isListening) {
+      (async () => {
+        console.log("Starting voice input in use effect");
+        await startVoiceInput();
+      })();
+    }
+  }, [isAiResponding, isListening, isSpeaking, isVoiceEnabled, startVoiceInput]);
+
+  useEffect(() => {
+    console.log("Is listening changed:", isListening);
+  }, [isListening]);
 
   return (
     <InterviewContext.Provider value={{

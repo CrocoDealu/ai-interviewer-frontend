@@ -51,7 +51,6 @@ class SpeechService {
       this.synthesis.cancel();
 
       const processedText = this.processText(text);
-      console.log('Speaking:', processedText);
 
       if (!processedText.trim()) {
         resolve();
@@ -82,7 +81,6 @@ class SpeechService {
 
         if (this.currentUtterance) {
           this.currentUtterance.onend = () => {
-            console.log("Speech synthesis finished.");
             this.currentUtterance = null;
             resolve();
           };
@@ -128,33 +126,27 @@ class SpeechService {
         return;
       }
 
-      console.log('Starting speech recognition...');
       this.isListening = true;
       let finalTranscript = '';
       let timeoutId: NodeJS.Timeout;
 
-      // Set a timeout to stop listening after 10 seconds of silence
       const resetTimeout = () => {
         if (timeoutId) clearTimeout(timeoutId);
         timeoutId = setTimeout(() => {
-          console.log('Speech recognition timeout');
           this.stopListening();
         }, 10000);
       };
 
       this.recognition.onstart = () => {
-        console.log('Speech recognition started');
         resetTimeout();
       };
 
       this.recognition.onresult = (event: SpeechRecognitionEvent) => {
-        console.log('Speech recognition result received');
         resetTimeout();
         
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
-          console.log('Transcript:', transcript, 'Final:', event.results[i].isFinal);
-          
+
           if (event.results[i].isFinal) {
             finalTranscript += transcript;
           }
@@ -162,7 +154,6 @@ class SpeechService {
       };
 
       this.recognition.onend = () => {
-        console.log('Speech recognition ended. Final transcript:', finalTranscript);
         this.isListening = false;
         if (timeoutId) clearTimeout(timeoutId);
 

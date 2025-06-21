@@ -11,7 +11,6 @@ import {
   VolumeX,
   Square,
   Loader2,
-  Settings,
   Play
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,18 +18,16 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { MessageContent } from '@/components/MessageContent';
 import { useInterview } from '@/contexts/InterviewContext';
 import { Message } from '@/types';
-import { deepSeekService } from '@/services/deepseekApi';
 import { speechService } from '@/services/speechService';
 import { toast } from 'sonner';
+import {apiService} from "@/services/api.ts";
 
 export function Interview() {
+  const [isApiHealthy, setIsApiHealthy] = useState<boolean | null>(null);
   const [message, setMessage] = useState('');
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState('00:00');
@@ -111,15 +108,27 @@ export function Interview() {
     }
   }, [currentSetup, navigate]);
 
-  // Check API configuration on mount
   useEffect(() => {
-    if (!deepSeekService.isConfigured()) {
-      toast.warning('OpenRouter API not configured. Using demo responses.');
-    }
+    checkHealth();
+    const interval = setInterval(() => {
+      checkHealth();
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(interval);
+
   }, []);
 
   if (!currentSetup) {
     return null;
+  }
+
+  function checkHealth() {
+    if (!apiService.healthCheck()) {
+      toast.warning('OpenRouter API not configured. Using demo responses.');
+      setIsApiHealthy(false);
+    } else {
+      setIsApiHealthy(true);
+    }
   }
 
   const handleStartInterview = async () => {
@@ -215,7 +224,7 @@ export function Interview() {
                   <Badge className={interviewer.color}>{interviewer.name}</Badge>
                 </div>
                 
-                {!deepSeekService.isConfigured() && (
+                {!isApiHealthy && (
                   <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                     <p className="text-sm text-yellow-800 dark:text-yellow-200">
                       <strong>Demo Mode:</strong> OpenRouter API not configured. The interview will use sample responses.
@@ -255,7 +264,7 @@ export function Interview() {
               <Badge className={interviewer.color} variant="secondary">
                 {currentSetup.personality}
               </Badge>
-              {!deepSeekService.isConfigured() && (
+              {!isApiHealthy && (
                 <Badge variant="outline" className="text-xs text-yellow-600">
                   Demo Mode
                 </Badge>
@@ -271,46 +280,6 @@ export function Interview() {
               <Clock className="h-4 w-4" />
               <span className="font-mono">{elapsedTime}</span>
             </div>
-
-            {/* Voice Settings */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Voice
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Voice Settings</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Configure voice input and output options
-                    </p>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="voice-mode" className="text-sm">
-                      Enable Voice Mode
-                    </Label>
-                    <Switch
-                      id="voice-mode"
-                      checked={isVoiceEnabled}
-                      onCheckedChange={handleVoiceToggle}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="text-xs text-muted-foreground">
-                      Voice Recognition: {speechService.isSpeechRecognitionSupported() ? '✅ Supported' : '❌ Not Supported'}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Text-to-Speech: {speechService.isTextToSpeechSupported() ? '✅ Supported' : '❌ Not Supported'}
-                    </div>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
 
             <Button variant="destructive" size="sm" onClick={handleEndInterview}>
               <Square className="h-4 w-4 mr-2" />
@@ -448,7 +417,7 @@ export function Interview() {
                           variant={isListening ? "destructive" : "outline"}
                           size="icon"
                           onClick={handleVoiceInput}
-                          disabled={isAiResponding || isSpeaking}
+                          disabled={isAiResponding}
                         >
                           {isListening ? (
                             <div className="flex items-center">

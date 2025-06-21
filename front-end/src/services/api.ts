@@ -195,7 +195,6 @@ class ApiService {
     return this.handleResponse<{ stats: any }>(response);
   }
 
-  // Health check
   async healthCheck() {
     const response = await fetch(`${this.baseURL.replace('/api', '')}/health`);
     return this.handleResponse<{
