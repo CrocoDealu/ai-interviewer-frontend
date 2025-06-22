@@ -11,7 +11,11 @@ import {
   VolumeX,
   Square,
   Loader2,
-  Play
+  Play,
+  Camera,
+  CameraOff,
+  Video,
+  VideoOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
@@ -24,7 +28,7 @@ import { useInterview } from '@/contexts/InterviewContext.tsx';
 import { Message } from '@/types';
 import { speechService } from '@/services/speechService.ts';
 import { toast } from 'sonner';
-import {apiService} from "@/services/api.ts";
+import { apiService } from "@/services/api.ts";
 
 export function Interview() {
   const [isApiHealthy, setIsApiHealthy] = useState<boolean | null>(null);
@@ -32,12 +36,20 @@ export function Interview() {
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [elapsedTime, setElapsedTime] = useState('00:00');
   const [hasStarted, setHasStarted] = useState(false);
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(false); // Start with false
-  const [isInitialLoad, setIsInitialLoad] = useState(true); // Track initial load
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Camera states
+  const [isCameraEnabled, setIsCameraEnabled] = useState(false);
+  const [hasRequestedCamera, setHasRequestedCamera] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const navigate = useNavigate();
+  
   const { 
     currentSetup,
     currentSession, 
@@ -94,6 +106,22 @@ export function Interview() {
     }
   }, [currentSession?.messages, shouldAutoScroll, isAiResponding, isInitialLoad]);
 
+  // Camera setup effect
+  useEffect(() => {
+    if (isCameraEnabled && !cameraStream) {
+      requestCameraAccess();
+    }
+  }, [isCameraEnabled]);
+
+  // Cleanup camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [cameraStream]);
+
   // Detect manual scrolling to disable auto-scroll
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const element = event.currentTarget;
@@ -115,7 +143,6 @@ export function Interview() {
     }, 10 * 60 * 1000);
 
     return () => clearInterval(interval);
-
   }, []);
 
   if (!currentSetup) {
@@ -131,12 +158,64 @@ export function Interview() {
     }
   }
 
+  const requestCameraAccess = async () => {
+    try {
+      setHasRequestedCamera(true);
+      setCameraError(null);
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user'
+        },
+        audio: false 
+      });
+      
+      setCameraStream(stream);
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      
+      toast.success('Camera access granted');
+    } catch (error) {
+      console.error('Camera access error:', error);
+      setIsCameraEnabled(false);
+      setCameraError('Camera access denied or not available');
+      
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          toast.error('Camera permission denied. Please allow camera access and try again.');
+        } else if (error.name === 'NotFoundError') {
+          toast.error('No camera found. Please connect a camera and try again.');
+        } else {
+          toast.error('Failed to access camera. Please check your camera settings.');
+        }
+      }
+    }
+  };
+
+  const handleCameraToggle = async () => {
+    if (isCameraEnabled) {
+      // Turn off camera
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
+      }
+      setIsCameraEnabled(false);
+      toast.info('Camera turned off');
+    } else {
+      // Turn on camera
+      setIsCameraEnabled(true);
+    }
+  };
+
   const handleStartInterview = async () => {
     setHasStarted(true);
     setStartTime(new Date());
-    setIsInitialLoad(true); // Reset initial load flag
-    setShouldAutoScroll(false); // Ensure auto-scroll is disabled initially
-    // Scroll to top when starting interview
+    setIsInitialLoad(true);
+    setShouldAutoScroll(false);
     window.scrollTo(0, 0);
     await startInterview(currentSetup);
   };
@@ -145,7 +224,7 @@ export function Interview() {
     if (message.trim() && !isAiResponding) {
       const messageText = message.trim();
       setMessage('');
-      setShouldAutoScroll(true); // Enable auto-scroll for user messages
+      setShouldAutoScroll(true);
       await addMessage(messageText, 'user');
     }
   };
@@ -158,6 +237,13 @@ export function Interview() {
   };
 
   const handleEndInterview = () => {
+    // Stop camera stream
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setIsCameraEnabled(false);
+    
     endInterview();
     navigate('/feedback');
   };
@@ -243,7 +329,7 @@ export function Interview() {
               </Button>
 
               <div className="mt-6 text-sm text-muted-foreground">
-                <p>💡 Tip: Make sure your microphone is working if you plan to use voice input</p>
+                <p>💡 Tip: Make sure your camera and microphone are working for the best experience</p>
               </div>
             </Card>
           </motion.div>
@@ -289,208 +375,319 @@ export function Interview() {
         </div>
       </div>
 
-      {/* Messages Area - Takes remaining space */}
-      <div className="flex-1 flex flex-col min-h-0">
-        <ScrollArea className="flex-1 min-h-0 p-4" onScrollCapture={handleScroll} ref={scrollAreaRef}>
-          <div className="space-y-4 max-w-4xl mx-auto pb-4">
-            <AnimatePresence>
-              {currentSession?.messages.map((msg: Message) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3 }}
-                  className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`flex items-start space-x-3 max-w-[70%] ${
-                    msg.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
-                  }`}>
-                    {/* Avatar */}
-                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                      msg.sender === 'user' 
-                        ? 'bg-primary text-primary-foreground' 
-                        : 'bg-muted text-muted-foreground'
-                    }`}>
-                      {msg.sender === 'user' ? (
-                        <User className="h-4 w-4" />
-                      ) : (
-                        <span className="text-sm">{interviewer.icon}</span>
+      {/* Main Content - Split Layout */}
+      <div className="flex-1 flex min-h-0">
+        {/* Video Section - Left Side */}
+        <div className="w-1/2 border-r bg-muted/20 p-4 flex flex-col">
+          <div className="flex-1 grid grid-rows-2 gap-4">
+            {/* AI Camera (Mockup) */}
+            <div className="relative">
+              <Card className="h-full bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+                <div className="h-full flex flex-col items-center justify-center p-6">
+                  <div className="text-6xl mb-4">{interviewer.icon}</div>
+                  <h3 className="text-lg font-semibold mb-2">{interviewer.name}</h3>
+                  <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>AI Interviewer</span>
+                  </div>
+                  {(isSpeaking || isAiResponding) && (
+                    <div className="mt-4 flex items-center space-x-2 text-sm">
+                      {isSpeaking && (
+                        <>
+                          <Volume2 className="h-4 w-4 text-blue-500" />
+                          <span className="text-blue-600">Speaking...</span>
+                        </>
+                      )}
+                      {isAiResponding && !isSpeaking && (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          <span className="text-primary">Thinking...</span>
+                        </>
                       )}
                     </div>
+                  )}
+                </div>
+              </Card>
+            </div>
 
-                    {/* Message Content */}
-                    <Card className={`p-3 ${
-                      msg.sender === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted'
-                    }`}>
-                      <MessageContent 
-                        content={msg.content} 
-                        className="text-sm leading-relaxed"
-                      />
-                      <p className={`text-xs mt-2 ${
-                        msg.sender === 'user'
-                          ? 'text-primary-foreground/70'
-                          : 'text-muted-foreground'
-                      }`}>
-                        {formatTime(msg.timestamp)}
-                      </p>
-                    </Card>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-
-            {/* AI Typing Indicator */}
-            {isAiResponding && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex justify-start"
-              >
-                <div className="flex items-start space-x-3 max-w-[70%]">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-muted text-muted-foreground">
-                    <span className="text-sm">{interviewer.icon}</span>
-                  </div>
-                  <Card className="p-3 bg-muted">
-                    <div className="flex items-center space-x-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm text-muted-foreground">
-                        {interviewer.name} is thinking...
+            {/* User Camera */}
+            <div className="relative">
+              <Card className="h-full overflow-hidden">
+                {isCameraEnabled && cameraStream ? (
+                  <div className="relative h-full">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute top-3 left-3 flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                      <span className="text-white text-sm font-medium bg-black/50 px-2 py-1 rounded">
+                        You
                       </span>
                     </div>
-                  </Card>
-                </div>
-              </motion.div>
-            )}
-
-            <div ref={messagesEndRef} />
-        
-          </div>
-        </ScrollArea>
-
-        {/* Input Area - Fixed at bottom */}
-        <div className="border-t bg-card p-4 flex-shrink-0">
-          <div className="max-w-4xl mx-auto">
-            {/* Scroll Control */}
-            {!shouldAutoScroll && currentSession?.messages && currentSession.messages.length > 0 && (
-              <div className="mb-3 text-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setShouldAutoScroll(true);
-                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="text-xs"
-                >
-                  ↓ Scroll to bottom
-                </Button>
-              </div>
-            )}
-            
-            <div className="flex items-center space-x-3">
-              {/* Voice Controls */}
-              <TooltipProvider>
-                <div className="flex space-x-1">
+                    {(isListening || isVoiceEnabled) && (
+                      <div className="absolute top-3 right-3">
+                        <div className="flex items-center space-x-2 bg-black/50 px-2 py-1 rounded">
+                          {isListening ? (
+                            <>
+                              <Mic className="h-4 w-4 text-red-400" />
+                              <span className="text-white text-sm">Listening</span>
+                            </>
+                          ) : isVoiceEnabled ? (
+                            <>
+                              <Mic className="h-4 w-4 text-green-400" />
+                              <span className="text-white text-sm">Voice Ready</span>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center p-6 bg-muted/50">
+                    <div className="text-4xl mb-4">
+                      {cameraError ? <CameraOff className="h-16 w-16 text-muted-foreground" /> : <Camera className="h-16 w-16 text-muted-foreground" />}
+                    </div>
+                    <h3 className="text-lg font-semibold mb-2">Your Camera</h3>
+                    {cameraError ? (
+                      <p className="text-sm text-destructive text-center mb-4">{cameraError}</p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center mb-4">
+                        Enable your camera for a more realistic interview experience
+                      </p>
+                    )}
+                  </div>
+                )}
+              </Card>
+              
+              {/* Camera Controls */}
+              <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2">
+                <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        variant={isVoiceEnabled ? "default" : "outline"}
+                        variant={isCameraEnabled ? "default" : "secondary"}
                         size="icon"
-                        onClick={handleVoiceToggle}
-                        disabled={!speechService.isSpeechRecognitionSupported()}
+                        onClick={handleCameraToggle}
+                        className="rounded-full"
                       >
-                        {isVoiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                        {isCameraEnabled ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      {isVoiceEnabled ? 'Disable voice mode' : 'Enable voice mode'}
+                      {isCameraEnabled ? 'Turn off camera' : 'Turn on camera'}
                     </TooltipContent>
                   </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
+          </div>
+        </div>
 
-                  {isVoiceEnabled && (
+        {/* Chat Section - Right Side */}
+        <div className="w-1/2 flex flex-col min-h-0">
+          {/* Messages Area */}
+          <div className="flex-1 flex flex-col min-h-0">
+            <ScrollArea className="flex-1 min-h-0 p-4" onScrollCapture={handleScroll} ref={scrollAreaRef}>
+              <div className="space-y-4 pb-4">
+                <AnimatePresence>
+                  {currentSession?.messages.map((msg: Message) => (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.3 }}
+                      className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`flex items-start space-x-3 max-w-[85%] ${
+                        msg.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+                      }`}>
+                        {/* Avatar */}
+                        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                          msg.sender === 'user' 
+                            ? 'bg-primary text-primary-foreground' 
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {msg.sender === 'user' ? (
+                            <User className="h-4 w-4" />
+                          ) : (
+                            <span className="text-sm">{interviewer.icon}</span>
+                          )}
+                        </div>
+
+                        {/* Message Content */}
+                        <Card className={`p-3 ${
+                          msg.sender === 'user'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted'
+                        }`}>
+                          <MessageContent 
+                            content={msg.content} 
+                            className="text-sm leading-relaxed"
+                          />
+                          <p className={`text-xs mt-2 ${
+                            msg.sender === 'user'
+                              ? 'text-primary-foreground/70'
+                              : 'text-muted-foreground'
+                          }`}>
+                            {formatTime(msg.timestamp)}
+                          </p>
+                        </Card>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+
+                {/* AI Typing Indicator */}
+                {isAiResponding && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex justify-start"
+                  >
+                    <div className="flex items-start space-x-3 max-w-[85%]">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-muted text-muted-foreground">
+                        <span className="text-sm">{interviewer.icon}</span>
+                      </div>
+                      <Card className="p-3 bg-muted">
+                        <div className="flex items-center space-x-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="text-sm text-muted-foreground">
+                            {interviewer.name} is thinking...
+                          </span>
+                        </div>
+                      </Card>
+                    </div>
+                  </motion.div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+
+            {/* Input Area */}
+            <div className="border-t bg-card p-4 flex-shrink-0">
+              {/* Scroll Control */}
+              {!shouldAutoScroll && currentSession?.messages && currentSession.messages.length > 0 && (
+                <div className="mb-3 text-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShouldAutoScroll(true);
+                      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="text-xs"
+                  >
+                    ↓ Scroll to bottom
+                  </Button>
+                </div>
+              )}
+              
+              <div className="flex items-center space-x-3">
+                {/* Voice Controls */}
+                <TooltipProvider>
+                  <div className="flex space-x-1">
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          variant={isListening ? "destructive" : "outline"}
+                          variant={isVoiceEnabled ? "default" : "outline"}
                           size="icon"
-                          onClick={handleVoiceInput}
-                          disabled={isAiResponding}
+                          onClick={handleVoiceToggle}
+                          disabled={!speechService.isSpeechRecognitionSupported()}
                         >
-                          {isListening ? (
-                            <div className="flex items-center">
-                              <MicOff className="h-4 w-4" />
-                            </div>
-                          ) : (
-                            <Mic className="h-4 w-4" />
-                          )}
+                          {isVoiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        {isListening ? 'Stop listening' : 'Start voice input'}
+                        {isVoiceEnabled ? 'Disable voice mode' : 'Enable voice mode'}
                       </TooltipContent>
                     </Tooltip>
-                  )}
-                </div>
-              </TooltipProvider>
 
-              {/* Text Input */}
-              <div className="flex-1 flex space-x-2">
-                <Input
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder={isVoiceEnabled ? "Voice mode active - use microphone or type..." : "Type your response..."}
-                  className="flex-1"
-                  disabled={isAiResponding || isListening}
-                />
-                <Button 
-                  onClick={handleSendMessage} 
-                  disabled={!canSendMessage}
-                >
-                  {isAiResponding ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {/* Status Indicators */}
-            <AnimatePresence>
-              {(isListening || isSpeaking || isAiResponding) && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mt-3 text-center"
-                >
-                  <div className="inline-flex items-center space-x-2 text-sm text-muted-foreground">
-                    {isListening && (
-                      <>
-                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                        <span>Listening... Speak now</span>
-                      </>
-                    )}
-                    {isSpeaking && (
-                      <>
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                        <span>AI is speaking...</span>
-                      </>
-                    )}
-                    {isAiResponding && !isSpeaking && (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>AI is thinking...</span>
-                      </>
+                    {isVoiceEnabled && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant={isListening ? "destructive" : "outline"}
+                            size="icon"
+                            onClick={handleVoiceInput}
+                            disabled={isAiResponding}
+                          >
+                            {isListening ? (
+                              <MicOff className="h-4 w-4" />
+                            ) : (
+                              <Mic className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {isListening ? 'Stop listening' : 'Start voice input'}
+                        </TooltipContent>
+                      </Tooltip>
                     )}
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                </TooltipProvider>
+
+                {/* Text Input */}
+                <div className="flex-1 flex space-x-2">
+                  <Input
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder={isVoiceEnabled ? "Voice mode active - use microphone or type..." : "Type your response..."}
+                    className="flex-1"
+                    disabled={isAiResponding || isListening}
+                  />
+                  <Button 
+                    onClick={handleSendMessage} 
+                    disabled={!canSendMessage}
+                  >
+                    {isAiResponding ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Status Indicators */}
+              <AnimatePresence>
+                {(isListening || isSpeaking || isAiResponding) && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-3 text-center"
+                  >
+                    <div className="inline-flex items-center space-x-2 text-sm text-muted-foreground">
+                      {isListening && (
+                        <>
+                          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                          <span>Listening... Speak now</span>
+                        </>
+                      )}
+                      {isSpeaking && (
+                        <>
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                          <span>AI is speaking...</span>
+                        </>
+                      )}
+                      {isAiResponding && !isSpeaking && (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>AI is thinking...</span>
+                        </>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>
