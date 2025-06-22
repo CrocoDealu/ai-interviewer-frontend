@@ -113,6 +113,15 @@ export function Interview() {
     }
   }, [isCameraEnabled]);
 
+  // Update video element when stream changes
+  useEffect(() => {
+    if (videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream;
+      // Ensure video plays
+      videoRef.current.play().catch(console.error);
+    }
+  }, [cameraStream]);
+
   // Cleanup camera stream on unmount
   useEffect(() => {
     return () => {
@@ -167,16 +176,14 @@ export function Interview() {
         video: { 
           width: { ideal: 640 },
           height: { ideal: 480 },
-          facingMode: 'user'
+          facingMode: 'user',
+          frameRate: { ideal: 30 }
         },
         audio: false 
       });
       
       setCameraStream(stream);
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      console.log('Camera stream obtained:', stream);
       
       toast.success('Camera access granted');
     } catch (error) {
@@ -420,7 +427,17 @@ export function Interview() {
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover bg-black"
+                      onLoadedMetadata={() => {
+                        console.log('Video metadata loaded');
+                        if (videoRef.current) {
+                          videoRef.current.play().catch(console.error);
+                        }
+                      }}
+                      onError={(e) => {
+                        console.error('Video error:', e);
+                        setCameraError('Failed to display video');
+                      }}
                     />
                     <div className="absolute top-3 left-3 flex items-center space-x-2">
                       <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
